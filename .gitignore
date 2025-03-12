@@ -1,0 +1,8 @@
+__pycache__/
+*.pyc
+finetuned_model/
+training_data.jsonl
+.env.local
+data/*
+venv/
+.venv/
