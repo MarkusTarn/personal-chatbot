@@ -3,3 +3,6 @@ datasets
 peft
 accelerate
 huggingface-hub
+torch
+torchvision
+torchaudio

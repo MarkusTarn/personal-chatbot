@@ -1,4 +1,5 @@
 import argparse
+import torch
 from transformers import AutoTokenizer, AutoModelForCausalLM, TrainingArguments, Trainer, DataCollatorForLanguageModeling
 from datasets import load_dataset
 from peft import get_peft_model, LoraConfig
@@ -19,14 +20,23 @@ def main(data_file, model_name="OpenAssistant/oasst-sft-4-pythia-12b-epoch-3.5",
     model = get_peft_model(model, peft_config)
     model.print_trainable_parameters()
 
+    # Move model to GPU if available
+    print(f"CUDA available: {torch.cuda.is_available()}")
+    print(f"CUDA version: {torch.version.cuda}")
+    print(f"Current device: {torch.cuda.get_device_name(0) if torch.cuda.is_available() else 'CPU'}")
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    model.to(device)
+    print(f"Using device: {device}")
+
     # Load dataset
     dataset = load_dataset("json", data_files={"train": data_file})["train"]
 
     # Tokenize function
-    def tokenize_function(example):
-        # Concatenate prompt and completion with a separator (adjust if needed)
-        text = example["prompt"] + "\n" + example["completion"]
-        return tokenizer(text, truncation=True, max_length=512)
+    def tokenize_function(examples):
+        # Handle batched inputs
+        texts = [prompt + "\n" + completion 
+                for prompt, completion in zip(examples["prompt"], examples["completion"])]
+        return tokenizer(texts, truncation=True, max_length=512)
 
     tokenized_dataset = dataset.map(tokenize_function, batched=True, remove_columns=dataset.column_names)
 
@@ -42,6 +52,9 @@ def main(data_file, model_name="OpenAssistant/oasst-sft-4-pythia-12b-epoch-3.5",
         save_steps=200,
         fp16=True,
         evaluation_strategy="no",
+        label_names=["labels"],
+        no_cuda=False,
+        use_cpu=False,
     )
 
     trainer = Trainer(
